@@ -1,0 +1,25 @@
+[project]
+name = "piccolo-sprite"
+version = "0.3.0"
+requires-python = ">=3.11"
+dependencies = [
+    "langchain>=0.3",
+    "langchain-openai>=0.2",
+    "langgraph>=0.2",
+    "openai>=1.30",
+    "pillow>=10.0",
+    "python-dotenv>=1.0",
+]
+
+[project.scripts]
+piccolo-sprite = "piccolo_sprite.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
