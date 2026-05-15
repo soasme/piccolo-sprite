@@ -1,6 +1,8 @@
 import argparse
 import asyncio
+import shutil
 import uuid
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -23,11 +25,22 @@ def parse_args(argv=None) -> argparse.Namespace:
         description="Pixel-art sprite generation agent",
     )
     parser.add_argument("-p", "--prompt", help="Run a one-shot prompt and exit")
+    parser.add_argument(
+        "--run-dir",
+        default="run",
+        metavar="DIR",
+        help="Run directory (default: run)",
+    )
+    parser.add_argument(
+        "--clean",
+        action="store_true",
+        help="Wipe the run directory before starting",
+    )
     return parser.parse_args(argv)
 
 
 async def run_stream(agent, user_input: str, thread_id: str) -> None:
-    config = {"configurable": {"thread_id": thread_id}}
+    config = {"configurable": {"thread_id": thread_id}, "recursion_limit": 64}
     in_reasoning = False
 
     async for event in agent.astream_events(
@@ -83,10 +96,24 @@ async def one_shot(agent, prompt: str) -> None:
 
 def main() -> None:
     args = parse_args()
+    run_dir = Path(args.run_dir)
+
+    if args.clean and run_dir.exists():
+        shutil.rmtree(run_dir)
+
     from .agent import build_agent
     agent = build_agent()
+
     if args.prompt:
-        asyncio.run(one_shot(agent, args.prompt))
+        prompt = args.prompt
+        manifest_path = run_dir / "run-manifest.json"
+        if run_dir.exists() and manifest_path.exists():
+            prompt = (
+                f"Resuming existing run in '{args.run_dir}'. "
+                f"Read the run-manifest.json first and continue any incomplete work. "
+                f"Original request: {args.prompt}"
+            )
+        asyncio.run(one_shot(agent, prompt))
     else:
         asyncio.run(repl(agent))
 

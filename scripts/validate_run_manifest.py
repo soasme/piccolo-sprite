@@ -19,7 +19,7 @@ BAD_METHOD_WORDS = (
     "text-only",
     "text only",
 )
-ALLOWED_REFERENCE_TYPES = {"chat_attachment", "file", "image_url"}
+ALLOWED_REFERENCE_TYPES = {"chat_attachment", "file", "image_url", "user_request"}
 MANDATORY_VISUAL_CHECKS = {
     "reference_identity",
     "direction",

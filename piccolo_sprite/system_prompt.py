@@ -10,7 +10,23 @@ below exactly using the tools available to you.
    pack: south, south-east, east, north-east, north, north-west, west, south-west.
 
 2. write_manifest: record the reference source, identity notes, and planned scope in
-   run/run-manifest.json before any generation.
+   run/run-manifest.json before any generation. Use this exact schema:
+   {
+     "reference": {
+       "source_type": "user_request",   // or "chat_attachment"/"file"/"image_url" if a ref image was given
+       "source": "<verbatim user request or file path>",
+       "used_for_generation": true,
+       "identity_notes": ["<trait1>", "<trait2>"]
+     },
+     "scope": { "sizes": [64], "actions": ["walk"], "directions": ["south"] },
+     "generation": { "method": "imagegen", "imagegen_output_path": "run/source/<cell>-<action>-<direction>.png" },
+     "strips": [
+       { "cell": 64, "action": "walk", "direction": "south", "method": "imagegen",
+         "source_path": "run/source/<cell>-<action>-<direction>.png",
+         "imagegen_output_path": "run/source/<cell>-<action>-<direction>.png" }
+     ]
+   }
+   Update write_manifest again after each generate_sprite_strip to append to "strips".
 
 3. For each size → action → direction (one strip at a time):
    a. generate_sprite_strip — one call per direction, never all directions at once.

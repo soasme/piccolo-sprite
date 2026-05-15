@@ -227,7 +227,7 @@ def main() -> None:
     }
 
     for row, direction in enumerate(directions):
-        source = input_dir / f"{args.action}-{direction}.png"
+        source = input_dir / f"{args.cell}-{args.action}-{direction}.png"
         frames = extract_frames(
             source,
             args.columns,
