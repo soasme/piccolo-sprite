@@ -97,33 +97,20 @@ def load_pipeline(lora_weight: float = 0.8, animation_type: str = "walk"):
     the pipeline is in bfloat16.  enable_model_cpu_offload() keeps peak VRAM under
     24 GB on a 4090.  Both LoRAs are fused at the requested weight.
     """
-    from diffusers import (
-        GGUFQuantizationConfig,
-        WanImageToVideoPipeline,
-        WanTransformer3DModel,
-    )
+    from diffusers import WanImageToVideoPipeline
+    from piccolo_sprite.models._gguf_loader import load_wan_transformer_gguf
 
     high_lora, low_lora = ensure_loras(animation_type)
-
-    q_cfg = GGUFQuantizationConfig(compute_dtype=torch.bfloat16)
 
     print("Downloading GGUF experts ...")
     high_gguf = hf_hub_download(GGUF_REPO, GGUF_HIGH, token=HF_TOKEN)
     low_gguf  = hf_hub_download(GGUF_REPO, GGUF_LOW,  token=HF_TOKEN)
 
     print("Loading transformer (high-noise expert, GGUF Q4) ...")
-    transformer = WanTransformer3DModel.from_single_file(
-        high_gguf,
-        quantization_config=q_cfg,
-        torch_dtype=torch.bfloat16,
-    )
+    transformer = load_wan_transformer_gguf(high_gguf, BASE_MODEL_ID, subfolder="transformer")
 
     print("Loading transformer_2 (low-noise expert, GGUF Q4) ...")
-    transformer_2 = WanTransformer3DModel.from_single_file(
-        low_gguf,
-        quantization_config=q_cfg,
-        torch_dtype=torch.bfloat16,
-    )
+    transformer_2 = load_wan_transformer_gguf(low_gguf, BASE_MODEL_ID, subfolder="transformer_2")
 
     print("Loading pipeline base components ...")
     pipe = WanImageToVideoPipeline.from_pretrained(
