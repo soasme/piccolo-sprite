@@ -104,11 +104,16 @@ def load_wan_transformer_gguf(
     """
     Load a WanTransformer3DModel from a GGUF file.
 
-    Builds a correctly-keyed state dict from the GGUF tensors and passes
-    it as a pre-built dict to from_single_file so that GGUFQuantizationConfig
-    still wires up the quantized-layer forward methods.
+    Bypasses from_single_file (which mis-detects config when given a dict and
+    errors on WAN2.2 key mismatch when given a path). Instead:
+      1. Loads GGUF tensors and remaps keys to diffusers convention
+      2. Creates model architecture on meta device from the HF config
+      3. Replaces nn.Linear with GGUF-aware layers via _replace_with_gguf_linear
+      4. Loads state dict with assign=True (replaces meta tensors in-place)
     """
     from diffusers import GGUFQuantizationConfig, WanTransformer3DModel
+    from diffusers.quantizers import DiffusersAutoQuantizer
+    from diffusers.quantizers.gguf.gguf_quantizer import _replace_with_gguf_linear
 
     print(f"  Loading GGUF tensors from {Path(gguf_path).name} ...")
     reader = gguf.GGUFReader(str(gguf_path), "r")
@@ -116,10 +121,23 @@ def load_wan_transformer_gguf(
     for t in reader.tensors:
         state_dict[_remap(t.name)] = _to_tensor(t)
 
-    print(f"  Passing {len(state_dict)} remapped tensors to from_single_file ...")
-    model = WanTransformer3DModel.from_single_file(
-        state_dict,
-        quantization_config=GGUFQuantizationConfig(compute_dtype=compute_dtype),
-        torch_dtype=compute_dtype,
-    )
+    print(f"  Creating WanTransformer3DModel ({subfolder}) on meta device ...")
+    cfg = WanTransformer3DModel.load_config(model_id, subfolder=subfolder)
+    with torch.device("meta"):
+        model = WanTransformer3DModel(**cfg)
+
+    # Replace nn.Linear with GGUF-aware layers that dequantize on forward.
+    _replace_with_gguf_linear(model, compute_dtype, state_dict)
+
+    # assign=True swaps meta tensors for real GGUFParameter tensors in-place.
+    missing, unexpected = model.load_state_dict(state_dict, assign=True, strict=False)
+    if missing:
+        print(f"  [warn] missing keys ({len(missing)}): {missing[:3]}")
+    if unexpected:
+        print(f"  [warn] unexpected keys ({len(unexpected)}): {unexpected[:3]}")
+
+    model.is_quantized = True
+    q_config = GGUFQuantizationConfig(compute_dtype=compute_dtype)
+    model.hf_quantizer = DiffusersAutoQuantizer.from_config(q_config)
+
     return model
