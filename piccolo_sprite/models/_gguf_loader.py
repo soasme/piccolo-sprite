@@ -149,8 +149,64 @@ def load_wan_transformer_gguf(
     if unexpected:
         print(f"  [warn] unexpected keys ({len(unexpected)}): {unexpected[:3]}")
 
+    # Non-persistent buffers (e.g. RoPE freqs_cos / freqs_sin) are registered
+    # inside __init__ which runs under torch.device("meta"), so they remain on
+    # the meta device and are NOT in the GGUF state dict.  Materialise them to
+    # CPU with to_empty so that enable_model_cpu_offload() can call .to("cpu")
+    # without hitting "Cannot copy out of meta tensor".
+    meta_buffers = [
+        (name, buf)
+        for name, buf in model.named_buffers()
+        if buf.device.type == "meta"
+    ]
+    if meta_buffers:
+        print(f"  Materialising {len(meta_buffers)} meta buffer(s) to CPU ...")
+        for name, buf in meta_buffers:
+            parts = name.split(".")
+            parent = model
+            for part in parts[:-1]:
+                parent = getattr(parent, part)
+            leaf = parts[-1]
+            # to_empty allocates storage without copying (safe for meta tensors).
+            real_buf = buf.new_empty(buf.shape, device="cpu")
+            parent.register_buffer(leaf, real_buf, persistent=False)
+        # Re-run the RoPE buffer computation now that storage exists.
+        if hasattr(model, "rope") and hasattr(model.rope, "freqs_cos"):
+            from diffusers.models.embeddings import get_1d_rotary_pos_embed
+            import torch as _torch
+            rope = model.rope
+            freqs_dtype = _torch.float32
+            t_dim, h_dim, w_dim = rope.t_dim, rope.h_dim, rope.w_dim
+            freqs_cos_parts, freqs_sin_parts = [], []
+            for dim in [t_dim, h_dim, w_dim]:
+                fc, fs = get_1d_rotary_pos_embed(
+                    dim, rope.max_seq_len, theta=10000.0,
+                    use_real=True, repeat_interleave_real=True,
+                    freqs_dtype=freqs_dtype,
+                )
+                freqs_cos_parts.append(fc)
+                freqs_sin_parts.append(fs)
+            rope.register_buffer("freqs_cos", _torch.cat(freqs_cos_parts, dim=1), persistent=False)
+            rope.register_buffer("freqs_sin", _torch.cat(freqs_sin_parts, dim=1), persistent=False)
+
     model.is_quantized = True
     q_config = GGUFQuantizationConfig(compute_dtype=compute_dtype)
     model.hf_quantizer = DiffusersAutoQuantizer.from_config(q_config)
+
+    # Cast non-quantized float tensors (weights, biases, buffers that are NOT
+    # GGUFParameter / uint8) to compute_dtype so that all unquantized paths run
+    # in a consistent dtype and avoid "Input type X and bias type Y should be
+    # the same" errors inside ops like conv3d.
+    from diffusers.quantizers.gguf.utils import GGUFParameter as _GGUFParam
+    for name, param in model.named_parameters():
+        if isinstance(param, _GGUFParam):
+            continue  # quantized — leave as-is
+        if param.dtype in (torch.float32, torch.float16, torch.bfloat16):
+            parts = name.split(".")
+            parent = model
+            for part in parts[:-1]:
+                parent = getattr(parent, part)
+            leaf = parts[-1]
+            setattr(parent, leaf, torch.nn.Parameter(param.data.to(compute_dtype), requires_grad=False))
 
     return model
