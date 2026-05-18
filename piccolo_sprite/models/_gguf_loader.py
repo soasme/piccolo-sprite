@@ -129,8 +129,21 @@ def load_wan_transformer_gguf(
     # Replace nn.Linear with GGUF-aware layers that dequantize on forward.
     _replace_with_gguf_linear(model, compute_dtype, state_dict)
 
-    # assign=True swaps meta tensors for real GGUFParameter tensors in-place.
-    missing, unexpected = model.load_state_dict(state_dict, assign=True, strict=False)
+    # load_state_dict(assign=True) still checks shapes, which breaks for Q4 tensors
+    # (shape [out, compressed_in] ≠ [out, in]).  Assign directly to bypass the check.
+    model_params = dict(model.named_parameters())
+    missing = [k for k in model_params if k not in state_dict]
+    unexpected = [k for k in state_dict if k not in model_params]
+    for name, param in state_dict.items():
+        if name not in model_params:
+            continue
+        parts = name.split(".")
+        module = model
+        for part in parts[:-1]:
+            module = getattr(module, part)
+        p = param if isinstance(param, torch.nn.Parameter) else torch.nn.Parameter(param, requires_grad=False)
+        setattr(module, parts[-1], p)
+
     if missing:
         print(f"  [warn] missing keys ({len(missing)}): {missing[:3]}")
     if unexpected:
