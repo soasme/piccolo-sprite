@@ -107,16 +107,20 @@ def load_pipeline(lora_weight: float = 0.8, animation_type: str = "walk"):
 
     q_cfg = GGUFQuantizationConfig(compute_dtype=torch.bfloat16)
 
+    print("Downloading GGUF experts ...")
+    high_gguf = hf_hub_download(GGUF_REPO, GGUF_HIGH, token=HF_TOKEN)
+    low_gguf  = hf_hub_download(GGUF_REPO, GGUF_LOW,  token=HF_TOKEN)
+
     print("Loading transformer (high-noise expert, GGUF Q4) ...")
     transformer = WanTransformer3DModel.from_single_file(
-        f"hf://{GGUF_REPO}/{GGUF_HIGH}",
+        high_gguf,
         quantization_config=q_cfg,
         torch_dtype=torch.bfloat16,
     )
 
     print("Loading transformer_2 (low-noise expert, GGUF Q4) ...")
     transformer_2 = WanTransformer3DModel.from_single_file(
-        f"hf://{GGUF_REPO}/{GGUF_LOW}",
+        low_gguf,
         quantization_config=q_cfg,
         torch_dtype=torch.bfloat16,
     )
