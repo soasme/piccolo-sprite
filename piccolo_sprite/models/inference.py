@@ -23,8 +23,8 @@ load_dotenv()
 HF_TOKEN = os.getenv("HUGGINGFACE_API_TOKEN")
 BASE_MODEL_ID = "Wan-AI/Wan2.2-I2V-A14B-Diffusers"
 GGUF_REPO = "bullerwins/Wan2.2-I2V-A14B-GGUF"
-GGUF_HIGH = "wan22-i2v-a14b-high-q4-k-s.gguf"
-GGUF_LOW = "wan22-i2v-a14b-low-q4-k-s.gguf"
+GGUF_HIGH = "wan2.2_i2v_high_noise_14B_Q4_K_S.gguf"
+GGUF_LOW  = "wan2.2_i2v_low_noise_14B_Q4_K_S.gguf"
 LORA_REPO = "soasme/piccolo-sprite"
 
 # Add new animation types here when LoRAs become available.
