@@ -5,6 +5,7 @@ EXPECTED_TOOL_NAMES = {
     "generate_sprite_strip",
     "assemble_action_sheet",
     "clean_sheet",
+    "fix_jaggies",
     "validate_sheet",
     "audit_motion",
     "validate_hierarchy",

@@ -13,6 +13,7 @@ def test_system_prompt_contains_pipeline_keywords():
         "ok=false",
         "south",
         "contact",
+        "fix_jaggies",
     ]:
         assert keyword in SYSTEM_PROMPT, f"Missing keyword: {keyword}"
 
