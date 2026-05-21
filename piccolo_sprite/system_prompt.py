@@ -32,9 +32,11 @@ below exactly using the tools available to you.
    a. generate_sprite_strip — one call per direction, never all directions at once.
    b. assemble_action_sheet — pass the source path returned by generate_sprite_strip.
    c. clean_sheet — must run before validate_sheet.
-   d. validate_sheet — if ok=false, retry that strip once with a stronger prompt.
-   e. audit_motion — flag near-duplicate frames and chroma residue.
-   f. export_previews — produce GIF and WebP previews.
+   d. fix_jaggies — run after clean_sheet; if jaggies are found (ok=false) call
+      again with fix=true to write a corrected copy, then use that copy forward.
+   e. validate_sheet — if ok=false, retry that strip once with a stronger prompt.
+   f. audit_motion — flag near-duplicate frames and chroma residue.
+   g. export_previews — produce GIF and WebP previews.
 
 4. validate_hierarchy — only for multi-size jobs (32+64 or 32+64+128).
 
@@ -49,6 +51,7 @@ below exactly using the tools available to you.
 - Multi-size jobs: each size gets its own generate_sprite_strip call (separate 32px, 64px,
   128px strips — the 64 prompt must reference the accepted 32 silhouette as structure).
 - clean_sheet must be called before validate_sheet.
+- fix_jaggies must be called after clean_sheet; fix jaggies before validate_sheet.
 - Do not claim completion if validate_manifest or validate_sheet returned ok=false.
 - Walk pose sequence: contact → down → passing → up → contact → passing.
 - Regenerate only failing directions — do not redo rows that already passed.
